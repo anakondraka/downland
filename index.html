@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="tr" class="dark">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>downland - Video Downloader</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>body{font-family:Inter,system-ui,sans-serif}.clamp{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}</style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+<header class="border-b border-slate-800 bg-slate-900/80">
+ <div class="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
+  <div class="w-10 h-10 rounded-xl bg-cyan-600 flex items-center justify-center"><i class="fa-solid fa-cloud-arrow-down"></i></div>
+  <div><div class="text-2xl font-black">downland</div><div class="text-[10px] uppercase tracking-widest text-cyan-400">Video & Audio Downloader</div></div>
+ </div>
+</header>
+<main class="max-w-4xl mx-auto px-4 py-12">
+ <section class="rounded-3xl border border-slate-800 bg-slate-900 p-6 sm:p-10 shadow-xl">
+  <div class="text-center mb-8"><h1 class="text-3xl sm:text-4xl font-black mb-3">Videonu gerçek kalitesiyle indir</h1><p class="text-slate-400">YouTube, TikTok veya Instagram bağlantısını yapıştır.</p></div>
+  <div class="flex flex-col sm:flex-row gap-2">
+   <input id="url" class="min-w-0 flex-1 rounded-xl bg-slate-950 border border-slate-700 px-4 py-4 outline-none focus:border-cyan-500" placeholder="Video bağlantısını yapıştır..." autocomplete="off">
+   <button id="get" class="rounded-xl bg-cyan-600 hover:bg-cyan-500 px-7 py-4 font-bold"><i class="fa-solid fa-magnifying-glass mr-2"></i>Getir</button>
+  </div>
+  <p id="status" class="text-sm text-slate-400 mt-4 text-center" aria-live="polite"></p>
+ </section>
+ <section id="result" class="hidden mt-6 rounded-3xl border border-slate-800 bg-slate-900 p-5 sm:p-7">
+  <div class="flex flex-col sm:flex-row gap-5 border-b border-slate-800 pb-6">
+   <img id="thumb" class="w-full sm:w-56 aspect-video object-cover rounded-xl bg-slate-950" alt="Video kapağı">
+   <div class="min-w-0 flex-1">
+    <div id="platform" class="text-xs text-cyan-400 font-bold mb-2"></div>
+    <h2 id="title" class="text-xl font-bold mb-3 break-words"></h2>
+    <p class="text-sm text-slate-300"><i class="fa-regular fa-user text-slate-500 mr-2"></i><span id="uploader"></span> <span id="username" class="text-slate-500"></span></p>
+    <p id="duration" class="text-xs text-slate-500 mt-2"></p>
+   </div>
+  </div>
+  <div class="pt-5">
+   <h3 class="font-bold mb-3">Açıklama</h3>
+   <p id="description" class="text-sm text-slate-400 whitespace-pre-wrap break-words clamp"></p>
+   <button id="more" class="hidden text-cyan-400 text-xs mt-2">Daha fazlasını göster</button>
+  </div>
+  <div class="pt-6">
+   <h3 class="font-bold mb-3">Mevcut indirme seçenekleri</h3>
+   <div id="qualities" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+   <p class="text-xs text-slate-500 mt-3">Yalnızca kaynağın gerçekten sunduğu çözünürlükler listelenir. Bazı içerikler giriş veya erişim izni gerektirebilir.</p>
+  </div>
+ </section>
+ <p class="text-xs text-slate-600 text-center mt-8">Yalnızca indirme hakkına sahip olduğunuz veya indirilmesine izin verilen içerikleri kullanın. Platform erişim kısıtlamaları aşılmaz.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let currentUrl = "", currentInfo = null;
+
+function formatDuration(seconds) {
+ if (!seconds) return "";
+ const m = Math.floor(seconds/60), s = seconds%60;
+ return `Süre: ${m}:${String(s).padStart(2,"0")}`;
+}
+function platformName(key) {
+ const k = (key || "").toLowerCase();
+ if (k.includes("youtube")) return "YouTube";
+ if (k.includes("tiktok")) return "TikTok";
+ if (k.includes("instagram")) return "Instagram";
+ return key || "Medya";
+}
+function addDownloadButton(label, query) {
+ const b = document.createElement("button");
+ b.className = "rounded-xl border border-slate-700 bg-slate-950 hover:bg-slate-800 p-4 text-left transition";
+ b.innerHTML = `<div class="font-bold">${label}</div><div class="text-xs text-slate-500 mt-1">Gerçek kaynak akışı</div>`;
+ b.addEventListener("click", () => download(query));
+ $("qualities").appendChild(b);
+}
+async function getInfo() {
+ const url = $("url").value.trim();
+ if (!url) { $("status").textContent = "Önce bir bağlantı gir."; return; }
+ currentUrl = url;
+ $("result").classList.add("hidden");
+ $("status").textContent = "Video bilgileri kaynaktan alınıyor...";
+ $("get").disabled = true;
+ try {
+  const response = await fetch("/api/info", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url})});
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Bilgiler alınamadı.");
+  currentInfo = data;
+  $("title").textContent = data.title;
+  $("uploader").textContent = data.uploader || "Yayıncı bilgisi yok";
+  $("username").textContent = data.username ? `(@${String(data.username).replace(/^@/,"")})` : "";
+  $("description").textContent = data.description || "Bu platform açıklama bilgisini sağlamadı.";
+  $("duration").textContent = formatDuration(data.duration);
+  $("platform").textContent = platformName(data.platform);
+  $("thumb").src = data.thumbnail || "";
+  $("thumb").alt = data.title || "Video kapağı";
+  $("qualities").replaceChildren();
+  (data.heights || []).forEach(h => addDownloadButton(`${h}p video indir`, {type:"video",height:h}));
+  if (data.heights && data.heights.length === 0) {
+    const note = document.createElement("p"); note.className="col-span-full text-sm text-amber-300"; note.textContent="Bu içerik için çözünürlük listesi alınamadı."; $("qualities").appendChild(note);
+  }
+  addDownloadButton("MP3 ses indir", {type:"mp3"});
+  $("more").classList.toggle("hidden", (data.description || "").length < 250);
+  $("more").textContent = "Daha fazlasını göster";
+  $("description").classList.add("clamp");
+  $("more").onclick = () => { const collapsed=$("description").classList.toggle("clamp"); $("more").textContent=collapsed?"Daha fazlasını göster":"Daha az göster"; };
+  $("result").classList.remove("hidden");
+  $("status").textContent = "Video bilgileri yüklendi.";
+ } catch(e) { $("status").textContent = e.message; }
+ finally { $("get").disabled = false; }
+}
+async function download(opts) {
+ if (!currentUrl) return;
+ $("status").textContent = "Dosya hazırlanıyor. Video boyutuna göre biraz sürebilir...";
+ const params = new URLSearchParams({url:currentUrl,type:opts.type});
+ if (opts.height) params.set("height",opts.height);
+ try {
+  const response = await fetch(`/api/download?${params}`);
+  if (!response.ok) {
+   let msg = "İndirme başarısız.";
+   try { msg=(await response.json()).error || msg; } catch {}
+   throw new Error(msg);
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename="?([^"]+)"?/i);
+  const filename = match ? match[1] : `downland.${opts.type==="mp3"?"mp3":"mp4"}`;
+  const a=document.createElement("a"), objectUrl=URL.createObjectURL(blob);
+  a.href=objectUrl; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(objectUrl),30000);
+  $("status").textContent = "İndirme tamamlandı.";
+ } catch(e) { $("status").textContent = e.message; }
+}
+$("get").addEventListener("click",getInfo);
+$("url").addEventListener("keydown",e=>{if(e.key==="Enter")getInfo();});
+</script>
+</body></html>

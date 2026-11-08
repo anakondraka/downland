@@ -1,0 +1,13 @@
+{
+  "name": "downland-video-downloader",
+  "version": "1.0.0",
+  "private": true,
+  "description": "YouTube, TikTok ve Instagram için yt-dlp tabanlı metadata ve indirme sunucusu",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
